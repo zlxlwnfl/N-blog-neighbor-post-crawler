@@ -106,6 +106,13 @@
      </widget>
     </item>
     <item>
+     <widget class="QPushButton" name="pushButton_search">
+      <property name="text">
+       <string>검색 시작</string>
+      </property>
+     </widget>
+    </item>
+    <item>
      <widget class="QGroupBox" name="groupBox_result">
       <property name="title">
        <string>결과</string>

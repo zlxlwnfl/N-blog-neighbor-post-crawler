@@ -114,6 +114,11 @@ class Ui_MainWindow(object):
 
         self.verticalLayout.addWidget(self.groupBox_filter)
 
+        self.pushButton_search = QPushButton(self.centralwidget)
+        self.pushButton_search.setObjectName(u"pushButton_search")
+
+        self.verticalLayout.addWidget(self.pushButton_search)
+
         self.groupBox_result = QGroupBox(self.centralwidget)
         self.groupBox_result.setObjectName(u"groupBox_result")
         self.verticalLayout_3 = QVBoxLayout(self.groupBox_result)
@@ -156,6 +161,7 @@ class Ui_MainWindow(object):
         self.label_neighborGroup.setText(QCoreApplication.translate("MainWindow", u"\uc774\uc6c3\uadf8\ub8f9     ", None))
         self.label_to.setText(QCoreApplication.translate("MainWindow", u"\uae4c\uc9c0", None))
         self.label_from.setText(QCoreApplication.translate("MainWindow", u"\uc5d0\uc11c", None))
+        self.pushButton_search.setText(QCoreApplication.translate("MainWindow", u"\uac80\uc0c9 \uc2dc\uc791", None))
         self.groupBox_result.setTitle(QCoreApplication.translate("MainWindow", u"\uacb0\uacfc", None))
         self.pushButton_excelSave.setText(QCoreApplication.translate("MainWindow", u"\uc5d1\uc140 \uc800\uc7a5", None))
     # retranslateUi
