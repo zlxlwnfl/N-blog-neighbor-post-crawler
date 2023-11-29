@@ -44,16 +44,16 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 # 메인 로직 클래스
 class MainLogic:
     def __init__(self):
-        self.driver = None
+        self.web_browser = None
 
     def login(self, input_id, input_pw):
         # 네이버 블로그 페이지 로딩
-        self.driver = webdriver.Chrome()
-        self.driver.get('https://section.blog.naver.com/BlogHome.naver')
+        self.web_browser = webdriver.Chrome()
+        self.web_browser.get('https://section.blog.naver.com/BlogHome.naver')
         time.sleep(2)
 
         # 로그인 상태가 아니라면 네이버 로그인 화면으로 이동
-        login_button = self.driver.find_element(By.CLASS_NAME, "login_button")
+        login_button = self.web_browser.find_element(By.CLASS_NAME, "login_button")
         if login_button is None:
             return
         else:
@@ -61,18 +61,18 @@ class MainLogic:
 
         # 캡챠 우회 위해 복붙+딜레이 활용
         pyperclip.copy(input_id)
-        self.driver.find_element(value="id").send_keys(Keys.CONTROL, 'v')
+        self.web_browser.find_element(value="id").send_keys(Keys.CONTROL, 'v')
         time.sleep(2)
 
         pyperclip.copy(input_pw)
-        self.driver.find_element(value="pw").send_keys(Keys.CONTROL, 'v')
+        self.web_browser.find_element(value="pw").send_keys(Keys.CONTROL, 'v')
         time.sleep(2)
 
-        self.driver.find_element(value="log.login").click()
+        self.web_browser.find_element(value="log.login").click()
 
     def window_close(self):
-        if self.driver is not None:
-            self.driver.close()
+        if self.web_browser is not None:
+            self.web_browser.close()
 
 
 # Qt 애플리케이션 생성
