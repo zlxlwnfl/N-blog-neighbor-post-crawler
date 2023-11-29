@@ -1,4 +1,4 @@
-from PySide6 import QtWidgets
+from PySide6 import QtWidgets, QtGui
 from ui.ui import Ui_MainWindow
 from qt_material import apply_stylesheet
 
@@ -28,6 +28,19 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         self.logic.login(inputId, inputPw)
 
+    def closeEvent(self, event: QtGui.QCloseEvent):
+        result = QtWidgets.QMessageBox.question(self,
+                                                "종료 확인",
+                                                "종료하시겠습니까?",
+                                                QtWidgets.QMessageBox.StandardButton.Yes|
+                                                QtWidgets.QMessageBox.StandardButton.No)
+        if result is QtWidgets.QMessageBox.StandardButton.Yes:
+            self.logic.windowClose()
+            event.accept()
+        else:
+            event.ignore()
+
+
 # 메인 로직 클래스
 class MainLogic:
     def login(self, inputId, inputPw):
@@ -53,6 +66,12 @@ class MainLogic:
         time.sleep(2)
 
         self.driver.find_element(value="log.login").click()
+
+    def windowClose(self):
+        if self.driver is None:
+            return
+        else:
+            self.driver.close()
 
 
 # Qt 애플리케이션 생성
