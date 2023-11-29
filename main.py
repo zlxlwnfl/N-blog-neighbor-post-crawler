@@ -28,6 +28,16 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.lineEdit_pw.returnPressed.connect(self.login)
         self.pushButton_login.clicked.connect(self.login)
 
+        # 테이블뷰 헤더 설정
+        table_top_header_labels = ['이웃명', '포스트 제목', '포스트 썸네일', '공감 개수', '댓글 개수', '포스트 url']
+        model = QStandardItemModel(None, 0, len(table_top_header_labels))
+        model.setHorizontalHeaderLabels(table_top_header_labels)
+
+        self.tableView_result.setModel(model)
+
+        header = self.tableView_result.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+
     def login(self):
         input_id = self.lineEdit_id.text()
         input_pw = self.lineEdit_pw.text()
@@ -143,7 +153,7 @@ class MainLogic:
 # Qt 애플리케이션 생성
 app = QApplication()
 window = MainWindow()
-apply_stylesheet(app, theme='light_blue.xml')
+apply_stylesheet(app, theme='dark_blue.xml')
 
 # 애플리케이션 실행
 window.show()
