@@ -1,3 +1,4 @@
+from PySide6.QtCore import *
 from PySide6.QtWidgets import *
 from PySide6.QtGui import *
 
@@ -8,9 +9,11 @@ from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.webdriver import WebDriver
+from selenium.common.exceptions import NoSuchElementException
 
 import time
 import pyperclip
+import requests
 
 
 # 메인 ui 클래스
@@ -19,6 +22,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         super().__init__()
         self.setupUi(self)
         self.logic = MainLogic()
+        self.model = None
 
         self.pushButton_search.setDisabled(True)
         self.pushButton_excelSave.setDisabled(True)
@@ -30,13 +34,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         # 테이블뷰 헤더 설정
         table_top_header_labels = ['이웃명', '포스트 제목', '포스트 썸네일', '공감 개수', '댓글 개수', '포스트 url']
-        model = QStandardItemModel(None, 0, len(table_top_header_labels))
-        model.setHorizontalHeaderLabels(table_top_header_labels)
+        self.model = QStandardItemModel(None, 0, len(table_top_header_labels))
+        self.model.setHorizontalHeaderLabels(table_top_header_labels)
 
-        self.tableView_result.setModel(model)
+        self.tableView_result.setModel(self.model)
 
         header = self.tableView_result.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+
+        self.pushButton_search.clicked.connect(self.search)
 
     def login(self):
         input_id = self.lineEdit_id.text()
@@ -53,6 +59,32 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.lineEdit_endPage.setText(str(default_page_data[1]))
 
         self.comboBox_neighborGroup.addItems(self.logic.find_neighbor_group_list())
+
+    def search(self):
+        data = self.logic.get_neighbor_post_data()
+
+        for row in range(len(data)):
+            for column in range(len(data[0])):
+                item = QStandardItem()
+
+                if column == 2:
+                    # 썸네일 가져오는 로직
+                    pixmap = self.load_image_from_url(str(data[row][column]))
+                    pixmap = pixmap.scaledToWidth(100)
+                    item.setData(pixmap, Qt.ItemDataRole.DecorationRole)
+                    # item.setSizeHint(pixmap.size())
+                else:
+                    item.setText(str(data[row][column]))
+
+                self.model.setItem(row, column, item)
+
+        self.pushButton_excelSave.setEnabled(True)
+
+    def load_image_from_url(self, url: str):
+        image = QImage()
+        image.loadFromData(requests.get(url).content)
+        pixmap = QPixmap.fromImage(image)
+        return pixmap
 
     def closeEvent(self, event: QCloseEvent):
         result = QMessageBox.question(
@@ -144,6 +176,73 @@ class MainLogic:
             )
         )
         return neighbor_group_list
+
+    def get_neighbor_post_data(self):
+        resultList = []
+
+        posts = self.web_browser.find_element(
+            by=By.CSS_SELECTOR,
+            value='div.list_post_article.list_post_article_comments'
+        ).find_elements(
+            by=By.CLASS_NAME,
+            value='item_inner',
+        )
+
+        for post in posts:
+            post_neighbor_name = post.find_element(
+                by=By.CLASS_NAME,
+                value='name_author',
+            ).text
+
+            post_title = post.find_element(
+                by=By.CLASS_NAME,
+                value='title_post',
+            ).text
+
+            post_thumnail_image_url = post.find_element(
+                by=By.CLASS_NAME,
+                value='img_post'
+            ).get_attribute('bg-image')
+
+            post_heart_count = None
+            try:
+                post_heart_count = post.find_element(
+                    by=By.CSS_SELECTOR,
+                    value='em.u_cnt._count',
+                ).text
+            except NoSuchElementException:
+                print("no post_heart")
+                post_heart_count = 0
+
+            post_comment_count = None
+            try:
+                post_comment_count = post.find_element(
+                    by=By.CSS_SELECTOR,
+                    value='span.reply',
+                ).find_element(
+                    by=By.TAG_NAME,
+                    value='em',
+                ).text
+            except NoSuchElementException:
+                print("no post_comment")
+                post_comment_count = 0
+
+            post_url = post.find_element(
+                by=By.CLASS_NAME,
+                value='desc_inner'
+            ).get_attribute('ng-href')
+
+            resultList.append([
+                post_neighbor_name,
+                post_title,
+                post_thumnail_image_url,
+                post_heart_count,
+                post_comment_count,
+                post_url,
+            ])
+
+        print(resultList)
+        return resultList
 
     def window_close(self):
         if self.web_browser is not None:
