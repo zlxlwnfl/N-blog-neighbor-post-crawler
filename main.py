@@ -1,3 +1,5 @@
+import urllib.parse
+
 from PySide6.QtCore import *
 from PySide6.QtWidgets import *
 from PySide6.QtGui import *
@@ -14,6 +16,7 @@ from selenium.common.exceptions import NoSuchElementException
 import time
 import pyperclip
 import requests
+from urllib.parse import urlparse, parse_qs, urlencode
 
 
 # 메인 ui 클래스
@@ -61,7 +64,21 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.comboBox_neighborGroup.addItems(self.logic.find_neighbor_group_list())
 
     def search(self):
-        data = self.logic.get_neighbor_post_data()
+        self.model.clear()
+        self.pushButton_excelSave.setDisabled(True)
+
+        start_page = int(self.lineEdit_startPage.text())
+        end_page = int(self.lineEdit_endPage.text())
+
+        if start_page > end_page:
+            QMessageBox.warning(
+                self,
+                '경고',
+                '시작 페이지가 끝 페이지보다 큰 값입니다.',
+                QMessageBox.StandardButton.Ok
+            )
+
+        data = self.logic.get_neighbor_post_data(start_page, end_page)
 
         for row in range(len(data)):
             for column in range(len(data[0])):
@@ -69,10 +86,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
                 if column == 2:
                     # 썸네일 가져오는 로직
-                    pixmap = self.load_image_from_url(str(data[row][column]))
-                    pixmap = pixmap.scaledToWidth(100)
-                    item.setData(pixmap, Qt.ItemDataRole.DecorationRole)
-                    # item.setSizeHint(pixmap.size())
+                    if data[row][column] is not None:
+                        pixmap = self.load_image_from_url(str(data[row][column]))
+                        pixmap = pixmap.scaledToWidth(100)
+                        item.setData(pixmap, Qt.ItemDataRole.DecorationRole)
+                        # item.setSizeHint(pixmap.size())
                 else:
                     item.setText(str(data[row][column]))
 
@@ -105,10 +123,14 @@ class MainLogic:
     def __init__(self):
         self.web_browser: WebDriver = None
 
-    def naver_blog_main_url(self) -> str:
-        return 'https://section.blog.naver.com/BlogHome.naver'
+        # 네이버 블로그 메인 url 쿼리 파싱
+        url_parse_result = urlparse(self.naver_blog_main_url())
+        self.naver_blog_main_url_querys = parse_qs(url_parse_result.query)
 
-    def login(self, input_id, input_pw) -> bool:
+    def naver_blog_main_url(self) -> str:
+        return 'https://section.blog.naver.com/BlogHome.naver?'
+
+    def login(self, input_id: str, input_pw: str) -> bool:
         # 네이버 블로그 페이지 로딩
         if self.web_browser is None:
             self.web_browser = webdriver.Chrome()
@@ -138,7 +160,7 @@ class MainLogic:
         else:
             return False
 
-    def find_default_page_data(self) -> []: # [start_page, end_page]
+    def find_default_page_data(self) -> []:  # [start_page, end_page]
         page_navigation = self.web_browser.find_element(
             by=By.XPATH,
             value='//*[@id="content"]/section/div[3]/div',
@@ -177,72 +199,88 @@ class MainLogic:
         )
         return neighbor_group_list
 
-    def get_neighbor_post_data(self):
-        resultList = []
+    def get_naver_blog_main_target_page_url(self, target_page: int) -> str:
+        self.naver_blog_main_url_querys['currentPage'] = [str(target_page)]
+        return self.naver_blog_main_url() + urlencode(self.naver_blog_main_url_querys, encoding='UTF-8', doseq=True)
 
-        posts = self.web_browser.find_element(
-            by=By.CSS_SELECTOR,
-            value='div.list_post_article.list_post_article_comments'
-        ).find_elements(
-            by=By.CLASS_NAME,
-            value='item_inner',
-        )
+    def get_neighbor_post_data(self, start_page: int, end_page: int) -> []:
+        result_list = []
 
-        for post in posts:
-            post_neighbor_name = post.find_element(
-                by=By.CLASS_NAME,
-                value='name_author',
-            ).text
+        for target_page in range(start_page, end_page+1):
+            self.web_browser.get(self.get_naver_blog_main_target_page_url(target_page))
+            time.sleep(1)
 
-            post_title = post.find_element(
-                by=By.CLASS_NAME,
-                value='title_post',
-            ).text
-
-            post_thumnail_image_url = post.find_element(
-                by=By.CLASS_NAME,
-                value='img_post'
-            ).get_attribute('bg-image')
-
-            post_heart_count = None
+            posts = None
             try:
-                post_heart_count = post.find_element(
+                posts = self.web_browser.find_element(
                     by=By.CSS_SELECTOR,
-                    value='em.u_cnt._count',
-                ).text
+                    value='div.list_post_article.list_post_article_comments'
+                ).find_elements(
+                    by=By.CLASS_NAME,
+                    value='item_inner',
+                )
             except NoSuchElementException:
-                print("no post_heart")
-                post_heart_count = 0
+                break
 
-            post_comment_count = None
-            try:
-                post_comment_count = post.find_element(
-                    by=By.CSS_SELECTOR,
-                    value='span.reply',
-                ).find_element(
-                    by=By.TAG_NAME,
-                    value='em',
+            for post in posts:
+                post_neighbor_name = post.find_element(
+                    by=By.CLASS_NAME,
+                    value='name_author',
                 ).text
-            except NoSuchElementException:
-                print("no post_comment")
-                post_comment_count = 0
 
-            post_url = post.find_element(
-                by=By.CLASS_NAME,
-                value='desc_inner'
-            ).get_attribute('ng-href')
+                post_title = post.find_element(
+                    by=By.CLASS_NAME,
+                    value='title_post',
+                ).text
 
-            resultList.append([
-                post_neighbor_name,
-                post_title,
-                post_thumnail_image_url,
-                post_heart_count,
-                post_comment_count,
-                post_url,
-            ])
+                post_thumnail_image_url = None
+                try:
+                    post_thumnail_image_url = post.find_element(
+                        by=By.CLASS_NAME,
+                        value='img_post'
+                    ).get_attribute('bg-image')
+                except NoSuchElementException:
+                    print("no thumnail image")
 
-        print(resultList)
-        return resultList
+                post_heart_count = None
+                try:
+                    post_heart_count = post.find_element(
+                        by=By.CSS_SELECTOR,
+                        value='em.u_cnt._count',
+                    ).text
+                except NoSuchElementException:
+                    print("no post_heart")
+                    post_heart_count = 0
+
+                post_comment_count = None
+                try:
+                    post_comment_count = post.find_element(
+                        by=By.CSS_SELECTOR,
+                        value='span.reply',
+                    ).find_element(
+                        by=By.TAG_NAME,
+                        value='em',
+                    ).text
+                except NoSuchElementException:
+                    print("no post_comment")
+                    post_comment_count = 0
+
+                post_url = post.find_element(
+                    by=By.CLASS_NAME,
+                    value='desc_inner'
+                ).get_attribute('ng-href')
+
+                result_list.append([
+                    post_neighbor_name,
+                    post_title,
+                    post_thumnail_image_url,
+                    post_heart_count,
+                    post_comment_count,
+                    post_url,
+                ])
+
+        print(result_list)
+        return result_list
 
     def window_close(self):
         if self.web_browser is not None:
