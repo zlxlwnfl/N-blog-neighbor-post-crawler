@@ -67,6 +67,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.model.clear()
         self.pushButton_excelSave.setDisabled(True)
 
+        # 페이지 설정
         start_page = int(self.lineEdit_startPage.text())
         end_page = int(self.lineEdit_endPage.text())
 
@@ -78,7 +79,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 QMessageBox.StandardButton.Ok
             )
 
-        data = self.logic.get_neighbor_post_data(start_page, end_page)
+        # 이웃그룹 설정
+        self.logic.set_neighbor_group(self.comboBox_neighborGroup.currentIndex())
+        print(f'currentIndex {self.comboBox_neighborGroup.currentIndex()}')
+        print(f'url {self.logic.web_browser.current_url}')
+        current_url_query = urlparse(self.logic.web_browser.current_url).query
+        neighbor_group_id = int(parse_qs(current_url_query)['groupId'][0])
+        print(f'neighbor_group_id {neighbor_group_id}')
+
+        data = self.logic.get_neighbor_post_data(start_page, end_page, neighbor_group_id)
 
         for row in range(len(data)):
             for column in range(len(data[0])):
@@ -124,8 +133,8 @@ class MainLogic:
         self.web_browser: WebDriver = None
 
         # 네이버 블로그 메인 url 쿼리 파싱
-        url_parse_result = urlparse(self.naver_blog_main_url())
-        self.naver_blog_main_url_querys = parse_qs(url_parse_result.query)
+        naver_blog_main_url_query = urlparse(self.naver_blog_main_url()).query
+        self.naver_blog_main_url_querys = parse_qs(naver_blog_main_url_query)
 
     def naver_blog_main_url(self) -> str:
         return 'https://section.blog.naver.com/BlogHome.naver?'
@@ -182,7 +191,7 @@ class MainLogic:
             by=By.XPATH,
             value='//*[@id="content"]/section/div[1]/div/div/a/i',
         ).click()
-        time.sleep(1)
+        time.sleep(0.5)
 
         neighbor_group_elements_list = self.web_browser.find_element(
             by=By.XPATH,
@@ -199,15 +208,35 @@ class MainLogic:
         )
         return neighbor_group_list
 
-    def get_naver_blog_main_target_page_url(self, target_page: int) -> str:
+    def set_neighbor_group(self, neighbor_group_index: int):
+        # 이웃 그룹 선택 콤보박스 닫기
+        self.web_browser.find_element(
+            by=By.CSS_SELECTOR,
+            value='h3.title_heading',
+        ).click()
+
+        self.web_browser.find_element(
+            by=By.XPATH,
+            value='//*[@id="content"]/section/div[1]/div/div/a/i',
+        ).click()
+        time.sleep(0.5)
+
+        self.web_browser.find_element(
+            by=By.CSS_SELECTOR,
+            value=f'a.item._buddy_dropdown_{neighbor_group_index}'
+        ).click()
+        time.sleep(0.5)
+
+    def get_naver_blog_main_target_page_url(self, target_page: int, neighbor_group_id: int) -> str:
         self.naver_blog_main_url_querys['currentPage'] = [str(target_page)]
+        self.naver_blog_main_url_querys['groupId'] = [str(neighbor_group_id)]
         return self.naver_blog_main_url() + urlencode(self.naver_blog_main_url_querys, encoding='UTF-8', doseq=True)
 
-    def get_neighbor_post_data(self, start_page: int, end_page: int) -> []:
+    def get_neighbor_post_data(self, start_page: int, end_page: int, neighbor_group_id: int) -> []:
         result_list = []
 
         for target_page in range(start_page, end_page+1):
-            self.web_browser.get(self.get_naver_blog_main_target_page_url(target_page))
+            self.web_browser.get(self.get_naver_blog_main_target_page_url(target_page, neighbor_group_id))
             time.sleep(1)
 
             posts = None
