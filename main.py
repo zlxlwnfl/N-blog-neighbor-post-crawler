@@ -26,10 +26,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         super().__init__()
         self.setupUi(self)
         self.logic = MainLogic()
-        self.model = None
 
-        self.pushButton_search.setDisabled(True)
-        self.pushButton_excelSave.setDisabled(True)
+        self.init()
 
         # 로그인 관련 로직
         self.lineEdit_pw.setEchoMode(QLineEdit.EchoMode.Password)
@@ -47,6 +45,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
 
         self.pushButton_search.clicked.connect(self.search)
+
+    def init(self):
+        self.model = None
+
+        self.pushButton_search.setDisabled(True)
+        self.pushButton_excelSave.setDisabled(True)
 
     def login(self):
         input_id = self.lineEdit_id.text()
@@ -89,12 +93,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.logic.close_floating_popup()
 
         # 이웃그룹 설정
-        self.logic.set_neighbor_group(self.comboBox_neighborGroup.currentIndex())
-        print(f'currentIndex {self.comboBox_neighborGroup.currentIndex()}')
-        print(f'url {self.logic.web_browser.current_url}')
-        current_url_query = urlparse(self.logic.web_browser.current_url).query
-        neighbor_group_id = int(parse_qs(current_url_query)['groupId'][0])
-        print(f'neighbor_group_id {neighbor_group_id}')
+        neighbor_group_id = self.logic.get_neighbor_group_id(self.comboBox_neighborGroup.currentIndex())
 
         data = self.logic.get_neighbor_post_data(start_page, end_page, neighbor_group_id)
 
@@ -218,6 +217,11 @@ class MainLogic:
             )
         )
         return neighbor_group_list
+
+    def get_neighbor_group_id(self, neighbor_group_index: int) -> int:
+        self.set_neighbor_group(neighbor_group_index)
+        current_url_query = urlparse(self.web_browser.current_url).query
+        return int(parse_qs(current_url_query)['groupId'][0])
 
     def set_neighbor_group(self, neighbor_group_index: int):
         # 이웃 그룹 선택 콤보박스 닫기
