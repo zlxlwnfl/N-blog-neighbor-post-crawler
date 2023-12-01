@@ -13,6 +13,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchWindowException
 
 import time
 import pyperclip
@@ -31,8 +32,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         # 로그인 관련 로직
         self.lineEdit_pw.setEchoMode(QLineEdit.EchoMode.Password)
-        self.lineEdit_pw.returnPressed.connect(self.login)
-        self.pushButton_login.clicked.connect(self.login)
+        self.lineEdit_pw.returnPressed.connect(self.loginEvent)
+        self.pushButton_login.clicked.connect(self.loginEvent)
 
         # 테이블뷰 헤더 설정
         table_top_header_labels = ['이웃명', '포스트 제목', '포스트 썸네일', '공감 개수', '댓글 개수', '포스트 url']
@@ -44,20 +45,37 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         header = self.tableView_result.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
 
-        self.pushButton_search.clicked.connect(self.search)
+        self.pushButton_search.clicked.connect(self.searchEvent)
 
     def init(self):
-        self.model = None
-
         self.pushButton_search.setDisabled(True)
         self.pushButton_excelSave.setDisabled(True)
 
-    def login(self):
+    def create_messagebox_when_web_broswer_closed(self):
+        QMessageBox.warning(
+            self,
+            '웹브라우저 종료 오류',
+            '''
+            로그인을 다시 시도해주세요. 
+            이 프로그램을 실행하는 동안 웹브라우저를 끄지 마세요.
+            '''
+        )
+
+    def check_web_broswer_alive(self):
+        if self.logic.is_web_broswer_alived() is False:
+            self.create_messagebox_when_web_broswer_closed()
+            self.init()
+            return
+
+    def loginEvent(self):
+        self.logic.create_chrome_web_browser()
+
+        self.check_web_broswer_alive()
+
         input_id = self.lineEdit_id.text()
         input_pw = self.lineEdit_pw.text()
 
-        result = self.logic.login(input_id, input_pw)
-        if result is False:
+        if self.logic.login(input_id, input_pw) is False:
             QMessageBox.warning(
                 self,
                 '로그인 오류',
@@ -74,9 +92,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         self.comboBox_neighborGroup.addItems(self.logic.find_neighbor_group_list())
 
-    def search(self):
+    def searchEvent(self):
         self.model.clear()
         self.pushButton_excelSave.setDisabled(True)
+
+        self.check_web_broswer_alive()
 
         # 페이지 설정
         start_page = int(self.lineEdit_startPage.text())
@@ -148,11 +168,20 @@ class MainLogic:
     def naver_blog_main_url(self) -> str:
         return 'https://section.blog.naver.com/BlogHome.naver?'
 
-    def login(self, input_id: str, input_pw: str) -> bool:
-        # 네이버 블로그 페이지 로딩
+    def create_chrome_web_browser(self):
         if self.web_browser is None:
             self.web_browser = webdriver.Chrome()
             self.actions = ActionChains(self.web_browser)
+
+    def is_web_broswer_alived(self) -> bool:
+        try:
+            print(self.web_browser.current_url)
+            return True
+        except NoSuchWindowException:
+            self.web_browser = None
+            return False
+
+    def login(self, input_id: str, input_pw: str) -> bool:
         self.web_browser.get(self.naver_blog_main_url())
         time.sleep(2)
 
