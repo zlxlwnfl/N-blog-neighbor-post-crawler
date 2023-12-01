@@ -17,9 +17,9 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QPalette, QPixmap, QRadialGradient, QTransform)
 from PySide6.QtWidgets import (QApplication, QComboBox, QFormLayout, QGridLayout,
     QGroupBox, QHBoxLayout, QHeaderView, QLabel,
-    QLineEdit, QMainWindow, QMenuBar, QPushButton,
-    QSizePolicy, QStatusBar, QTableView, QVBoxLayout,
-    QWidget)
+    QLineEdit, QMainWindow, QMenuBar, QProgressBar,
+    QPushButton, QSizePolicy, QStatusBar, QTableView,
+    QVBoxLayout, QWidget)
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -30,7 +30,11 @@ class Ui_MainWindow(object):
         self.centralwidget.setObjectName(u"centralwidget")
         self.verticalLayout = QVBoxLayout(self.centralwidget)
         self.verticalLayout.setObjectName(u"verticalLayout")
-        self.groupBox_userAuth = QGroupBox(self.centralwidget)
+        self.groupBox_control = QGroupBox(self.centralwidget)
+        self.groupBox_control.setObjectName(u"groupBox_control")
+        self.verticalLayout_2 = QVBoxLayout(self.groupBox_control)
+        self.verticalLayout_2.setObjectName(u"verticalLayout_2")
+        self.groupBox_userAuth = QGroupBox(self.groupBox_control)
         self.groupBox_userAuth.setObjectName(u"groupBox_userAuth")
         self.formLayout_2 = QFormLayout(self.groupBox_userAuth)
         self.formLayout_2.setObjectName(u"formLayout_2")
@@ -65,9 +69,9 @@ class Ui_MainWindow(object):
         self.formLayout_2.setLayout(0, QFormLayout.LabelRole, self.horizontalLayout)
 
 
-        self.verticalLayout.addWidget(self.groupBox_userAuth)
+        self.verticalLayout_2.addWidget(self.groupBox_userAuth)
 
-        self.groupBox_filter = QGroupBox(self.centralwidget)
+        self.groupBox_filter = QGroupBox(self.groupBox_control)
         self.groupBox_filter.setObjectName(u"groupBox_filter")
         self.formLayout = QFormLayout(self.groupBox_filter)
         self.formLayout.setObjectName(u"formLayout")
@@ -112,14 +116,14 @@ class Ui_MainWindow(object):
         self.formLayout.setLayout(0, QFormLayout.LabelRole, self.gridLayout)
 
 
-        self.verticalLayout.addWidget(self.groupBox_filter)
+        self.verticalLayout_2.addWidget(self.groupBox_filter)
 
-        self.pushButton_search = QPushButton(self.centralwidget)
+        self.pushButton_search = QPushButton(self.groupBox_control)
         self.pushButton_search.setObjectName(u"pushButton_search")
 
-        self.verticalLayout.addWidget(self.pushButton_search)
+        self.verticalLayout_2.addWidget(self.pushButton_search)
 
-        self.groupBox_result = QGroupBox(self.centralwidget)
+        self.groupBox_result = QGroupBox(self.groupBox_control)
         self.groupBox_result.setObjectName(u"groupBox_result")
         self.verticalLayout_3 = QVBoxLayout(self.groupBox_result)
         self.verticalLayout_3.setObjectName(u"verticalLayout_3")
@@ -134,7 +138,18 @@ class Ui_MainWindow(object):
         self.verticalLayout_3.addWidget(self.pushButton_excelSave)
 
 
-        self.verticalLayout.addWidget(self.groupBox_result)
+        self.verticalLayout_2.addWidget(self.groupBox_result)
+
+
+        self.verticalLayout.addWidget(self.groupBox_control)
+
+        self.progressBar = QProgressBar(self.centralwidget)
+        self.progressBar.setObjectName(u"progressBar")
+        self.progressBar.setMaximum(0)
+        self.progressBar.setValue(-1)
+        self.progressBar.setTextVisible(False)
+
+        self.verticalLayout.addWidget(self.progressBar)
 
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QMenuBar(MainWindow)
@@ -152,6 +167,7 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"N\uc0ac \ube14\ub85c\uadf8 \uc774\uc6c3 \ud3ec\uc2a4\ud2b8 \ud06c\ub864\ub7ec", None))
+        self.groupBox_control.setTitle("")
         self.groupBox_userAuth.setTitle(QCoreApplication.translate("MainWindow", u"\uc0ac\uc6a9\uc790 \uc778\uc99d", None))
         self.label_id.setText(QCoreApplication.translate("MainWindow", u"ID", None))
         self.label_pw.setText(QCoreApplication.translate("MainWindow", u"PW", None))

@@ -30,6 +30,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         self.init()
 
+        self.progressBar.setVisible(False)
+
         # 로그인 관련 로직
         self.lineEdit_pw.setEchoMode(QLineEdit.EchoMode.Password)
         self.lineEdit_pw.returnPressed.connect(self.loginEvent)
@@ -67,73 +69,107 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.init()
             return
 
+    def set_progressing_ui(self):
+        self.progressBar.setVisible(True)
+        self.groupBox_control.setDisabled(True)
+
+    def unset_progressing_ui(self):
+        self.progressBar.setVisible(False)
+        self.groupBox_control.setEnabled(True)
+
+    class LoginThread(QThread):
+        def __init__(self, parent):
+            super().__init__(parent)
+            self.main_window: MainWindow = self.parent()
+
+        def run(self):
+            self.main_window.logic.create_chrome_web_browser()
+
+            self.main_window.check_web_broswer_alive()
+
+            input_id = self.main_window.lineEdit_id.text()
+            input_pw = self.main_window.lineEdit_pw.text()
+
+            if self.main_window.logic.login(input_id, input_pw) is False:
+                QMessageBox.warning(
+                    self.main_window,
+                    '로그인 오류',
+                    '정확한 아이디와 비밀번호를 적어주세요.',
+                    QMessageBox.StandardButton.Ok,
+                )
+                return
+
+            self.main_window.pushButton_search.setEnabled(True)
+
+            default_page_data = self.main_window.logic.find_default_page_data()
+            self.main_window.lineEdit_startPage.setText(str(default_page_data[0]))
+            self.main_window.lineEdit_endPage.setText(str(default_page_data[1]))
+
+            self.main_window.comboBox_neighborGroup.addItems(self.main_window.logic.find_neighbor_group_list())
+
+            self.quit()
+
     def loginEvent(self):
-        self.logic.create_chrome_web_browser()
+        login_thread = self.LoginThread(self)
 
-        self.check_web_broswer_alive()
+        login_thread.started.connect(self.set_progressing_ui)
+        login_thread.finished.connect(self.unset_progressing_ui)
+        login_thread.start()
 
-        input_id = self.lineEdit_id.text()
-        input_pw = self.lineEdit_pw.text()
+    class SearchThread(QThread):
+        def __init__(self, parent):
+            super().__init__(parent)
+            self.main_window: MainWindow = self.parent()
 
-        if self.logic.login(input_id, input_pw) is False:
-            QMessageBox.warning(
-                self,
-                '로그인 오류',
-                '정확한 아이디와 비밀번호를 적어주세요.',
-                QMessageBox.StandardButton.Ok,
-            )
-            return
+        def run(self):
+            self.main_window.model.clear()
+            self.main_window.pushButton_excelSave.setDisabled(True)
 
-        self.pushButton_search.setEnabled(True)
+            self.main_window.check_web_broswer_alive()
 
-        default_page_data = self.logic.find_default_page_data()
-        self.lineEdit_startPage.setText(str(default_page_data[0]))
-        self.lineEdit_endPage.setText(str(default_page_data[1]))
+            # 페이지 설정
+            start_page = int(self.main_window.lineEdit_startPage.text())
+            end_page = int(self.main_window.lineEdit_endPage.text())
 
-        self.comboBox_neighborGroup.addItems(self.logic.find_neighbor_group_list())
+            if start_page > end_page:
+                QMessageBox.warning(
+                    self.main_window,
+                    '경고',
+                    '시작 페이지가 끝 페이지보다 큰 값입니다.',
+                    QMessageBox.StandardButton.Ok
+                )
+
+            self.main_window.logic.close_floating_popup()
+
+            # 이웃그룹 설정
+            neighbor_group_id = self.main_window.logic.get_neighbor_group_id(self.main_window.comboBox_neighborGroup.currentIndex())
+
+            data = self.main_window.logic.get_neighbor_post_data(start_page, end_page, neighbor_group_id)
+
+            for row in range(len(data)):
+                for column in range(len(data[0])):
+                    item = QStandardItem()
+
+                    if column == 2:
+                        # 썸네일 가져오는 로직
+                        if data[row][column] is not None:
+                            pixmap = self.main_window.load_image_from_url(str(data[row][column]))
+                            pixmap = pixmap.scaledToWidth(100)
+                            item.setData(pixmap, Qt.ItemDataRole.DecorationRole)
+                            # item.setSizeHint(pixmap.size())
+                    else:
+                        item.setText(str(data[row][column]))
+
+                    self.main_window.model.setItem(row, column, item)
+
+            self.main_window.pushButton_excelSave.setEnabled(True)
 
     def searchEvent(self):
-        self.model.clear()
-        self.pushButton_excelSave.setDisabled(True)
+        search_thread = self.SearchThread(self)
 
-        self.check_web_broswer_alive()
-
-        # 페이지 설정
-        start_page = int(self.lineEdit_startPage.text())
-        end_page = int(self.lineEdit_endPage.text())
-
-        if start_page > end_page:
-            QMessageBox.warning(
-                self,
-                '경고',
-                '시작 페이지가 끝 페이지보다 큰 값입니다.',
-                QMessageBox.StandardButton.Ok
-            )
-
-        self.logic.close_floating_popup()
-
-        # 이웃그룹 설정
-        neighbor_group_id = self.logic.get_neighbor_group_id(self.comboBox_neighborGroup.currentIndex())
-
-        data = self.logic.get_neighbor_post_data(start_page, end_page, neighbor_group_id)
-
-        for row in range(len(data)):
-            for column in range(len(data[0])):
-                item = QStandardItem()
-
-                if column == 2:
-                    # 썸네일 가져오는 로직
-                    if data[row][column] is not None:
-                        pixmap = self.load_image_from_url(str(data[row][column]))
-                        pixmap = pixmap.scaledToWidth(100)
-                        item.setData(pixmap, Qt.ItemDataRole.DecorationRole)
-                        # item.setSizeHint(pixmap.size())
-                else:
-                    item.setText(str(data[row][column]))
-
-                self.model.setItem(row, column, item)
-
-        self.pushButton_excelSave.setEnabled(True)
+        search_thread.started.connect(self.set_progressing_ui)
+        search_thread.finished.connect(self.unset_progressing_ui)
+        search_thread.start()
 
     def load_image_from_url(self, url: str):
         image = QImage()
