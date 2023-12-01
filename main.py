@@ -54,6 +54,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         result = self.logic.login(input_id, input_pw)
         if result is False:
+            QMessageBox.warning(
+                self,
+                '로그인 오류',
+                '정확한 아이디와 비밀번호를 적어주세요.',
+                QMessageBox.StandardButton.Ok,
+            )
             return
 
         self.pushButton_search.setEnabled(True)
@@ -80,7 +86,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 QMessageBox.StandardButton.Ok
             )
 
-        # TODO: 팝업 잘 지우는지 확인 필요
         self.logic.close_floating_popup()
 
         # 이웃그룹 설정
