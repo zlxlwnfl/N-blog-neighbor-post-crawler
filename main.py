@@ -18,6 +18,10 @@ from selenium.common.exceptions import NoSuchWindowException
 import time
 import pyperclip
 import requests
+from openpyxl import Workbook
+from openpyxl.worksheet.worksheet import Worksheet
+from datetime import datetime
+import os
 from urllib.parse import urlparse, parse_qs, urlencode
 
 
@@ -25,6 +29,7 @@ from urllib.parse import urlparse, parse_qs, urlencode
 class MainWindow(QMainWindow, Ui_MainWindow):
     def __init__(self):
         super().__init__()
+        self.model = None
         self.setupUi(self)
         self.logic = MainLogic()
 
@@ -37,21 +42,27 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.lineEdit_pw.returnPressed.connect(self.loginEvent)
         self.pushButton_login.clicked.connect(self.loginEvent)
 
-        # 테이블뷰 헤더 설정
-        table_top_header_labels = ['이웃명', '포스트 제목', '포스트 썸네일', '공감 개수', '댓글 개수', '포스트 url']
-        self.model = QStandardItemModel(None, 0, len(table_top_header_labels))
-        self.model.setHorizontalHeaderLabels(table_top_header_labels)
-
-        self.tableView_result.setModel(self.model)
+        self.create_model_and_set_table_top_header()
 
         header = self.tableView_result.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
 
         self.pushButton_search.clicked.connect(self.searchEvent)
 
+        self.result_directory = 'crawling_result'
+        os.makedirs(self.result_directory, exist_ok=True)
+        self.pushButton_excelSave.clicked.connect(self.excelSaveEvent)
+
     def __init(self):
         self.pushButton_search.setDisabled(True)
         self.pushButton_excelSave.setDisabled(True)
+
+    def create_model_and_set_table_top_header(self):
+        table_top_header_labels = ['이웃명', '포스트 제목', '포스트 썸네일', '공감 개수', '댓글 개수', '포스트 url']
+        self.model = QStandardItemModel(None, 0, len(table_top_header_labels))
+        self.model.setHorizontalHeaderLabels(table_top_header_labels)
+
+        self.tableView_result.setModel(self.model)
 
     def __create_messagebox_when_web_broswer_closed(self):
         QMessageBox.warning(
@@ -116,13 +127,19 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         login_thread.finished.connect(self.__unset_progressing_ui)
         login_thread.start()
 
+    def load_image_from_url(self, url: str):
+        image = QImage()
+        image.loadFromData(requests.get(url).content)
+        pixmap = QPixmap.fromImage(image)
+        return pixmap
+
     class SearchThread(QThread):
         def __init__(self, parent):
             super().__init__(parent)
             self.main_window: MainWindow = self.parent()
 
         def run(self):
-            self.main_window.model.clear()
+            self.main_window.create_model_and_set_table_top_header()
 
             # 페이지 설정
             start_page = int(self.main_window.lineEdit_startPage.text())
@@ -139,7 +156,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.main_window.logic.close_floating_popup()
 
             # 이웃그룹 설정
-            neighbor_group_id = self.main_window.logic.get_neighbor_group_id(self.main_window.comboBox_neighborGroup.currentIndex())
+            neighbor_group_id = self.main_window.logic.get_neighbor_group_id(
+                self.main_window.comboBox_neighborGroup.currentIndex()
+            )
 
             data = self.main_window.logic.get_neighbor_post_data(start_page, end_page, neighbor_group_id)
 
@@ -173,11 +192,51 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         search_thread.finished.connect(self.__unset_progressing_ui)
         search_thread.start()
 
-    def load_image_from_url(self, url: str):
-        image = QImage()
-        image.loadFromData(requests.get(url).content)
-        pixmap = QPixmap.fromImage(image)
-        return pixmap
+    class ExcelSaveThread(QThread):
+        def __init__(self, parent):
+            super().__init__(parent)
+            self.main_window: MainWindow = self.parent()
+
+        def run(self):
+            workbook: Workbook = Workbook()
+            sheet: Worksheet = workbook.active
+
+            top_header_count = self.main_window.model.columnCount()
+            for col in range(top_header_count):
+                header_item: QStandardItem = self.main_window.model.horizontalHeaderItem(col)
+                sheet.cell(
+                    row=1,
+                    column=col+1,
+                    value=str(header_item.text())
+                )
+
+            for row in range(self.main_window.model.rowCount()):
+                for col in range(self.main_window.model.columnCount()):
+                    item = self.main_window.model.item(row, col)
+                    if item is not None:
+                        sheet.cell(
+                            row=row+2,
+                            column=col+1,
+                            value=str(item.text())
+                        )
+
+            result_file_name = os.path.join(
+                self.main_window.result_directory,
+                datetime.now().strftime("%Y%m%d_%H_%M_%S")
+            )
+            workbook.save(filename=f'{result_file_name}.xlsx')
+
+            self.quit()
+
+    def excelSaveEvent(self):
+        if self.__check_web_broswer_alive() is False:
+            return
+
+        excel_save_thread = self.ExcelSaveThread(self)
+
+        excel_save_thread.started.connect(self.__set_progressing_ui)
+        excel_save_thread.finished.connect(self.__unset_progressing_ui)
+        excel_save_thread.start()
 
     def closeEvent(self, event: QCloseEvent):
         result = QMessageBox.question(
