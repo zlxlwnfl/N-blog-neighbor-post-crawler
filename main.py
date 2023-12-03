@@ -28,7 +28,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.setupUi(self)
         self.logic = MainLogic()
 
-        self.init()
+        self.__init()
 
         self.progressBar.setVisible(False)
 
@@ -49,31 +49,33 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         self.pushButton_search.clicked.connect(self.searchEvent)
 
-    def init(self):
+    def __init(self):
         self.pushButton_search.setDisabled(True)
         self.pushButton_excelSave.setDisabled(True)
 
-    def create_messagebox_when_web_broswer_closed(self):
+    def __create_messagebox_when_web_broswer_closed(self):
         QMessageBox.warning(
             self,
             '웹브라우저 종료 오류',
             '''
             로그인을 다시 시도해주세요. 
             이 프로그램을 실행하는 동안 웹브라우저를 끄지 마세요.
-            '''
+            ''',
+            QMessageBox.StandardButton.Ok,
         )
 
-    def check_web_broswer_alive(self):
+    def __check_web_broswer_alive(self) -> bool:
         if self.logic.is_web_broswer_alived() is False:
-            self.create_messagebox_when_web_broswer_closed()
-            self.init()
-            return
+            self.__create_messagebox_when_web_broswer_closed()
+            self.__init()
+            return False
+        return True
 
-    def set_progressing_ui(self):
+    def __set_progressing_ui(self):
         self.progressBar.setVisible(True)
         self.groupBox_control.setDisabled(True)
 
-    def unset_progressing_ui(self):
+    def __unset_progressing_ui(self):
         self.progressBar.setVisible(False)
         self.groupBox_control.setEnabled(True)
 
@@ -83,10 +85,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.main_window: MainWindow = self.parent()
 
         def run(self):
-            self.main_window.logic.create_chrome_web_browser()
-
-            self.main_window.check_web_broswer_alive()
-
             input_id = self.main_window.lineEdit_id.text()
             input_pw = self.main_window.lineEdit_pw.text()
 
@@ -110,10 +108,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.quit()
 
     def loginEvent(self):
+        self.logic.create_chrome_web_browser()
+
         login_thread = self.LoginThread(self)
 
-        login_thread.started.connect(self.set_progressing_ui)
-        login_thread.finished.connect(self.unset_progressing_ui)
+        login_thread.started.connect(self.__set_progressing_ui)
+        login_thread.finished.connect(self.__unset_progressing_ui)
         login_thread.start()
 
     class SearchThread(QThread):
@@ -123,9 +123,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         def run(self):
             self.main_window.model.clear()
-            self.main_window.pushButton_excelSave.setDisabled(True)
-
-            self.main_window.check_web_broswer_alive()
 
             # 페이지 설정
             start_page = int(self.main_window.lineEdit_startPage.text())
@@ -164,11 +161,16 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
             self.main_window.pushButton_excelSave.setEnabled(True)
 
+            self.quit()
+
     def searchEvent(self):
+        if self.__check_web_broswer_alive() is False:
+            return
+
         search_thread = self.SearchThread(self)
 
-        search_thread.started.connect(self.set_progressing_ui)
-        search_thread.finished.connect(self.unset_progressing_ui)
+        search_thread.started.connect(self.__set_progressing_ui)
+        search_thread.finished.connect(self.__unset_progressing_ui)
         search_thread.start()
 
     def load_image_from_url(self, url: str):
@@ -198,14 +200,14 @@ class MainLogic:
         self.actions: ActionChains = None
 
         # 네이버 블로그 메인 url 쿼리 파싱
-        naver_blog_main_url_query = urlparse(self.naver_blog_main_url()).query
+        naver_blog_main_url_query = urlparse(self.__naver_blog_main_url()).query
         self.naver_blog_main_url_querys = parse_qs(naver_blog_main_url_query)
 
-    def naver_blog_main_url(self) -> str:
+    def __naver_blog_main_url(self) -> str:
         return 'https://section.blog.naver.com/BlogHome.naver?'
 
     def create_chrome_web_browser(self):
-        if self.web_browser is None:
+        if self.is_web_broswer_alived() is False:
             self.web_browser = webdriver.Chrome()
             self.actions = ActionChains(self.web_browser)
 
@@ -213,12 +215,12 @@ class MainLogic:
         try:
             print(self.web_browser.current_url)
             return True
-        except NoSuchWindowException:
+        except Exception:
             self.web_browser = None
             return False
 
     def login(self, input_id: str, input_pw: str) -> bool:
-        self.web_browser.get(self.naver_blog_main_url())
+        self.web_browser.get(self.__naver_blog_main_url())
         time.sleep(2)
 
         # 로그인 상태가 아니라면 네이버 로그인 화면으로 이동
@@ -239,7 +241,7 @@ class MainLogic:
 
         self.web_browser.find_element(value="log.login").click()
         time.sleep(2)
-        if self.naver_blog_main_url() in self.web_browser.current_url:
+        if self.__naver_blog_main_url() in self.web_browser.current_url:
             return True
         else:
             return False
@@ -284,11 +286,11 @@ class MainLogic:
         return neighbor_group_list
 
     def get_neighbor_group_id(self, neighbor_group_index: int) -> int:
-        self.set_neighbor_group(neighbor_group_index)
+        self.__set_neighbor_group(neighbor_group_index)
         current_url_query = urlparse(self.web_browser.current_url).query
         return int(parse_qs(current_url_query)['groupId'][0])
 
-    def set_neighbor_group(self, neighbor_group_index: int):
+    def __set_neighbor_group(self, neighbor_group_index: int):
         # 이웃 그룹 선택 콤보박스 닫기
         self.web_browser.find_element(
             by=By.CSS_SELECTOR,
@@ -307,16 +309,16 @@ class MainLogic:
         ).click()
         time.sleep(0.5)
 
-    def get_naver_blog_main_target_page_url(self, target_page: int, neighbor_group_id: int) -> str:
+    def __get_naver_blog_main_target_page_url(self, target_page: int, neighbor_group_id: int) -> str:
         self.naver_blog_main_url_querys['currentPage'] = [str(target_page)]
         self.naver_blog_main_url_querys['groupId'] = [str(neighbor_group_id)]
-        return self.naver_blog_main_url() + urlencode(self.naver_blog_main_url_querys, encoding='UTF-8', doseq=True)
+        return self.__naver_blog_main_url() + urlencode(self.naver_blog_main_url_querys, encoding='UTF-8', doseq=True)
 
     def get_neighbor_post_data(self, start_page: int, end_page: int, neighbor_group_id: int) -> []:
         result_list = []
 
         for target_page in range(start_page, end_page+1):
-            self.web_browser.get(self.get_naver_blog_main_target_page_url(target_page, neighbor_group_id))
+            self.web_browser.get(self.__get_naver_blog_main_target_page_url(target_page, neighbor_group_id))
             self.close_floating_popup()
             time.sleep(1)
 
