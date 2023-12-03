@@ -30,7 +30,7 @@ from urllib.parse import urlparse, parse_qs, urlencode
 class MainWindow(QMainWindow, Ui_MainWindow):
     def __init__(self):
         super().__init__()
-        self.model = None
+        self.model: QStandardItemModel = None
         self.setupUi(self)
         self.logic = MainLogic()
 
@@ -161,25 +161,33 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 self.main_window.comboBox_neighborGroup.currentIndex()
             )
 
-            data = self.main_window.logic.get_neighbor_post_data(start_page, end_page, neighbor_group_id)
+            for target_page in range(start_page, end_page+1):
+                data = self.main_window.logic.get_neighbor_post_data(target_page, neighbor_group_id)
 
-            for row in range(len(data)):
-                for column in range(len(data[0])):
-                    item = QStandardItem()
+                for row in range(len(data)):
+                    if self.isInterruptionRequested():
+                        return
 
-                    if column == 2:
-                        # 썸네일 가져오는 로직
-                        if data[row][column] is not None:
-                            pixmap = self.main_window.load_image_from_url(str(data[row][column]))
-                            pixmap = pixmap.scaledToWidth(100)
-                            item.setData(pixmap, Qt.ItemDataRole.DecorationRole)
-                            # item.setSizeHint(pixmap.size())
-                    else:
-                        item.setText(str(data[row][column]))
+                    row_data = []
 
-                    self.main_window.model.setItem(row, column, item)
+                    for column in range(len(data[0])):
+                        item = QStandardItem()
 
-            self.main_window.pushButton_excelSave.setEnabled(True)
+                        if column == 2:
+                            # 썸네일 가져오는 로직
+                            if data[row][column] is not None:
+                                pixmap = self.main_window.load_image_from_url(str(data[row][column]))
+                                pixmap = pixmap.scaledToWidth(100)
+                                item.setData(pixmap, Qt.ItemDataRole.DecorationRole)
+                                # item.setSizeHint(pixmap.size())
+                        else:
+                            item.setText(str(data[row][column]))
+
+                        row_data.append(item)
+
+                    self.main_window.model.appendRow(row_data)
+
+                    self.main_window.pushButton_excelSave.setEnabled(True)
 
             self.quit()
 
@@ -209,7 +217,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.search_thread.finished.connect(self.__unset_progressing_ui_search_version)
             self.search_thread.start()
         elif button_text == '검색 중지':
-            self.search_thread.terminate()
+            self.search_thread.requestInterruption()
             self.search_thread.wait()
 
             self.pushButton_search.setText('검색 시작')
@@ -395,82 +403,81 @@ class MainLogic:
         self.naver_blog_main_url_querys['groupId'] = [str(neighbor_group_id)]
         return self.__naver_blog_main_url() + urlencode(self.naver_blog_main_url_querys, encoding='UTF-8', doseq=True)
 
-    def get_neighbor_post_data(self, start_page: int, end_page: int, neighbor_group_id: int) -> []:
+    def get_neighbor_post_data(self, target_page: int, neighbor_group_id: int) -> []:
         result_list = []
 
-        for target_page in range(start_page, end_page+1):
-            self.web_browser.get(self.__get_naver_blog_main_target_page_url(target_page, neighbor_group_id))
-            self.close_floating_popup()
-            time.sleep(1)
+        self.web_browser.get(self.__get_naver_blog_main_target_page_url(target_page, neighbor_group_id))
+        self.close_floating_popup()
+        time.sleep(1)
 
-            posts = None
+        posts = None
+        try:
+            posts = self.web_browser.find_element(
+                by=By.CSS_SELECTOR,
+                value='div.list_post_article.list_post_article_comments'
+            ).find_elements(
+                by=By.CLASS_NAME,
+                value='item_inner',
+            )
+        except NoSuchElementException:
+            return result_list
+
+        for post in posts:
+            post_neighbor_name = post.find_element(
+                by=By.CLASS_NAME,
+                value='name_author',
+            ).text
+
+            post_title = post.find_element(
+                by=By.CLASS_NAME,
+                value='title_post',
+            ).text
+
+            post_thumnail_image_url = None
             try:
-                posts = self.web_browser.find_element(
-                    by=By.CSS_SELECTOR,
-                    value='div.list_post_article.list_post_article_comments'
-                ).find_elements(
+                post_thumnail_image_url = post.find_element(
                     by=By.CLASS_NAME,
-                    value='item_inner',
-                )
+                    value='img_post'
+                ).get_attribute('bg-image')
             except NoSuchElementException:
-                break
+                print("no thumnail image")
 
-            for post in posts:
-                post_neighbor_name = post.find_element(
-                    by=By.CLASS_NAME,
-                    value='name_author',
+            post_heart_count = None
+            try:
+                post_heart_count = post.find_element(
+                    by=By.CSS_SELECTOR,
+                    value='em.u_cnt._count',
                 ).text
+            except NoSuchElementException:
+                print("no post_heart")
+                post_heart_count = 0
 
-                post_title = post.find_element(
-                    by=By.CLASS_NAME,
-                    value='title_post',
+            post_comment_count = None
+            try:
+                post_comment_count = post.find_element(
+                    by=By.CSS_SELECTOR,
+                    value='span.reply',
+                ).find_element(
+                    by=By.TAG_NAME,
+                    value='em',
                 ).text
+            except NoSuchElementException:
+                print("no post_comment")
+                post_comment_count = 0
 
-                post_thumnail_image_url = None
-                try:
-                    post_thumnail_image_url = post.find_element(
-                        by=By.CLASS_NAME,
-                        value='img_post'
-                    ).get_attribute('bg-image')
-                except NoSuchElementException:
-                    print("no thumnail image")
+            post_url = post.find_element(
+                by=By.CLASS_NAME,
+                value='desc_inner'
+            ).get_attribute('ng-href')
 
-                post_heart_count = None
-                try:
-                    post_heart_count = post.find_element(
-                        by=By.CSS_SELECTOR,
-                        value='em.u_cnt._count',
-                    ).text
-                except NoSuchElementException:
-                    print("no post_heart")
-                    post_heart_count = 0
-
-                post_comment_count = None
-                try:
-                    post_comment_count = post.find_element(
-                        by=By.CSS_SELECTOR,
-                        value='span.reply',
-                    ).find_element(
-                        by=By.TAG_NAME,
-                        value='em',
-                    ).text
-                except NoSuchElementException:
-                    print("no post_comment")
-                    post_comment_count = 0
-
-                post_url = post.find_element(
-                    by=By.CLASS_NAME,
-                    value='desc_inner'
-                ).get_attribute('ng-href')
-
-                result_list.append([
-                    post_neighbor_name,
-                    post_title,
-                    post_thumnail_image_url,
-                    post_heart_count,
-                    post_comment_count,
-                    post_url,
-                ])
+            result_list.append([
+                post_neighbor_name,
+                post_title,
+                post_thumnail_image_url,
+                post_heart_count,
+                post_comment_count,
+                post_url,
+            ])
 
         print(result_list)
         return result_list
