@@ -1,3 +1,4 @@
+import threading
 import urllib.parse
 
 from PySide6.QtCore import *
@@ -182,15 +183,36 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
             self.quit()
 
+    def __set_progressing_ui_search_version(self):
+        self.progressBar.setVisible(True)
+        self.groupBox_userAuth.setDisabled(True)
+        self.groupBox_filter.setDisabled(True)
+        self.groupBox_result.setDisabled(True)
+
+    def __unset_progressing_ui_search_version(self):
+        self.progressBar.setVisible(False)
+        self.groupBox_userAuth.setEnabled(True)
+        self.groupBox_filter.setEnabled(True)
+        self.groupBox_result.setEnabled(True)
+
     def searchEvent(self):
-        if self.__check_web_broswer_alive() is False:
-            return
+        button_text = self.pushButton_search.text()
+        if button_text == '검색 시작':
+            self.pushButton_search.setText('검색 중지')
 
-        search_thread = self.SearchThread(self)
+            if self.__check_web_broswer_alive() is False:
+                return
 
-        search_thread.started.connect(self.__set_progressing_ui)
-        search_thread.finished.connect(self.__unset_progressing_ui)
-        search_thread.start()
+            self.search_thread = self.SearchThread(self)
+
+            self.search_thread.started.connect(self.__set_progressing_ui_search_version)
+            self.search_thread.finished.connect(self.__unset_progressing_ui_search_version)
+            self.search_thread.start()
+        elif button_text == '검색 중지':
+            self.search_thread.terminate()
+            self.search_thread.wait()
+
+            self.pushButton_search.setText('검색 시작')
 
     class ExcelSaveThread(QThread):
         def __init__(self, parent):
